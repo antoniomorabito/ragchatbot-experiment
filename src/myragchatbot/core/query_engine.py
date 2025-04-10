@@ -9,6 +9,7 @@ from src.myragchatbot.loaders.document_processor import DocumentProcessor
 from src.myragchatbot.llm_backends.openai_llm import OpenAIChat
 from src.myragchatbot.llm_backends.ollama_llm import OllamaChat
 from src.myragchatbot.llm_backends.gemini_llm import GeminiChat
+from src.myragchatbot.llm_backends.mistral_llm import MistralChat
 from src.myragchatbot.internet_search.tavily_search import run_tavily_search
 from src.myragchatbot.core.prompt_template import (
     default_rag_prompt, story_prompt, summary_prompt, qa_prompt
@@ -44,6 +45,9 @@ class QueryEngine:
             self.llm = OllamaChat(model="llama3.2:latest", temperature=temperature)
         elif llm_backend == "gemini":
             self.llm = GeminiChat(temperature=temperature)
+        elif llm_backend == "mistral":
+            self.llm =MistralChat(model= "mistral:latest" ,temperature=temperature)
+        
         else:
             raise ValueError(f"Unknown LLM backend: {llm_backend}")
 

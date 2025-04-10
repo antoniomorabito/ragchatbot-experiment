@@ -24,7 +24,7 @@ if "engine" not in st.session_state:
     st.session_state["engine"] = None
 
 # --- CONFIG UI ---
-llm_choice = st.selectbox("LLM backend:", ["openai", "ollama", "gemini", "mistral"], index=1)
+llm_choices = st.multiselect("Compare LLMs:", ["openai", "ollama", "gemini", "mistral"], default=["openai", "ollama"])
 embedding_choice = st.selectbox("Embedding backend:", ["openai", "ollama", "huggingface"], index=1)
 prompt_choice = st.selectbox("Prompt style:", ["default", "story", "qa", "summary"])
 use_internet = st.checkbox("Use Internet Search (Tavily)?", value=True)
@@ -34,31 +34,32 @@ temperature = st.slider("Model Temperature", 0.0, 1.0, 0.0, step=0.1)
 top_k = st.slider("Top K Documents", 1, 10, 5)
 rerank_threshold = st.slider("Rerank Threshold", 0.0, 1.0, 0.4, step=0.05)
 
-# --- Build or Load Vectorstore ---
+# --- File Upload + Indexing ---
+query_engine = None
 vectorstore_path = os.path.join(VECTORSTORE_DIR, embedding_choice, "chroma.sqlite3")
 
 if st.button("Generate Vectorstore for Selected Embedding"):
     with st.spinner("Creating vectorstore..."):
-        st.session_state["engine"] = QueryEngine(
-            llm_backend=llm_choice,
+        query_engine = QueryEngine(
+            llm_backend=llm_choices[0],  # default llm untuk indexing
             embedding_backend=embedding_choice,
             temperature=temperature,
         )
+        st.session_state["engine"] = query_engine
         st.success(f"Vectorstore created using `{embedding_choice}`.")
 
-# Auto-load if vectorstore exists but engine belum ada
 if st.session_state["engine"] is None and os.path.exists(vectorstore_path):
     with st.spinner("Loading existing vectorstore..."):
-        st.session_state["engine"] = QueryEngine(
-            llm_backend=llm_choice,
+        query_engine = QueryEngine(
+            llm_backend=llm_choices[0],
             embedding_backend=embedding_choice,
             temperature=temperature,
         )
+        st.session_state["engine"] = query_engine
         st.success("Existing vectorstore loaded.")
 
-query_engine: QueryEngine = st.session_state["engine"]
+query_engine = st.session_state["engine"]
 
-# --- File Upload + Indexing ---
 uploaded_file = st.file_uploader("Upload PDF or TXT", type=["pdf", "txt"])
 if uploaded_file and query_engine:
     file_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
@@ -67,7 +68,6 @@ if uploaded_file and query_engine:
     query_engine.load_and_index_file(file_path)
     st.success(f"`{uploaded_file.name}` uploaded and indexed.")
 
-    # Optional preview chunks
     if uploaded_file.name.endswith(".pdf"):
         loader = PDFLoader(file_path)
     else:
@@ -82,11 +82,9 @@ if uploaded_file and query_engine:
             st.markdown(f"**Chunk {i+1}** — Page: {chunk.metadata.get('page_number', '?')}")
             st.code(chunk.page_content[:300])
 
-# --- Clear Chat ---
 if st.button("Clear Chat History"):
     st.session_state["chat_history"] = []
 
-# --- Chat Interface ---
 st.markdown("###Chat")
 for msg in st.session_state["chat_history"]:
     with st.chat_message(msg["role"]):
@@ -98,59 +96,54 @@ if query and query_engine:
     with st.chat_message("user"):
         st.markdown(query)
 
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            answer, docs, debug_context = query_engine.answer_query(
-                question=query,
-                top_k=top_k,
-                use_internet=use_internet,
-                prompt_type=prompt_choice,
-                use_mmr=use_mmr,
-            )
-            st.markdown(answer)
+    # Multi-LLM comparison
+    st.markdown("### LLM Comparison")
+    for llm in llm_choices:
+        with st.chat_message("assistant"):
+            with st.spinner(f"Answering with {llm}..."):
+                engine = QueryEngine(
+                    llm_backend=llm,
+                    embedding_backend=embedding_choice,
+                    temperature=temperature,
+                )
+                answer, docs, debug_context = engine.answer_query(
+                    question=query,
+                    top_k=top_k,
+                    use_internet=use_internet,
+                    prompt_type=prompt_choice,
+                    use_mmr=use_mmr,
+                )
+                st.markdown(f"**{llm.upper()}**: {answer}")
 
-    st.session_state["chat_history"].append({"role": "assistant", "content": answer})
+                # Rerank
+                if use_reranker:
+                    reranker = CohereReranker(threshold=rerank_threshold)
+                    reranked = reranker.rerank(query, docs)
+                else:
+                    reranked = [{"document": doc, "relevance_score": 1.0} for doc in docs]
 
-    # --- Rerank + Eval
-    if use_reranker:
-        reranker = CohereReranker(threshold=rerank_threshold)
-        reranked = reranker.rerank(query, docs)
-    else:
-        reranked = [{"document": doc, "relevance_score": 1.0} for doc in docs]
+                for r in reranked:
+                    r["is_relevant"] = r["relevance_score"] >= rerank_threshold
 
-    for r in reranked:
-        r["is_relevant"] = r["relevance_score"] >= rerank_threshold
-    
-    st.markdown("###Reranked Documents")
-    for i, item in enumerate(reranked, 1):
-        score = item["relevance_score"]
-        doc = item["document"]
-        source = doc.metadata.get("source", "unknown")
-        page = doc.metadata.get("page_number", "?")
-        with st.expander(f"Doc {i} — Score: {score:.2f} — Page: {page}"):
-            st.markdown(doc.page_content[:1000])
+                with st.expander(f"{llm.upper()} - Reranked Documents"):
+                    for i, item in enumerate(reranked, 1):
+                        score = item["relevance_score"]
+                        doc = item["document"]
+                        page = doc.metadata.get("page_number", "?")
+                        st.markdown(f"**Doc {i}** — Score: {score:.2f} — Page: {page}")
+                        st.code(doc.page_content[:500])
 
-    # --- Evaluation
-    k_eval = min(top_k, len(reranked))
-    metrics = evaluate_reranking(reranked, k=k_eval)
+                k_eval = min(top_k, len(reranked))
+                metrics = evaluate_reranking(reranked, k=k_eval)
+                st.markdown("**Evaluation**")
+                st.metric("Precision@k", f"{metrics['precision@k']:.2f}")
+                st.metric("Recall@k", f"{metrics['recall@k']:.2f}")
+                st.metric("MAP", f"{metrics['MAP']:.2f}")
 
-    st.markdown("### Reranking Evaluation")
-    st.metric("Precision@k", f"{metrics['precision@k']:.2f}")
-    st.metric("Recall@k", f"{metrics['recall@k']:.2f}")
-    st.metric("MAP", f"{metrics['MAP']:.2f}")
-
-    with st.expander(" What do these metrics mean?"):
-        st.markdown("""
-        - **Precision@k**: Proporsi dokumen di top-k yang memang relevan.
-        - **Recall@k**: Seberapa banyak dokumen relevan yang berhasil ditemukan dari total dokumen relevan.
-        - **MAP**: Rata-rata precision dari posisi di mana dokumen relevan muncul.
-        """)
-
-    # --- Internet Context
-    if use_internet:
-        st.markdown("###  Internet Context")
-        for i, c in enumerate(debug_context[-top_k:], 1):
-            st.markdown(f"**[{i}]** {c}")
+                if use_internet:
+                    with st.expander("Internet Context"):
+                        for i, c in enumerate(debug_context[-top_k:], 1):
+                            st.markdown(f"**[{i}]** {c}")
 
 # --- If nothing yet
 elif not query_engine:
