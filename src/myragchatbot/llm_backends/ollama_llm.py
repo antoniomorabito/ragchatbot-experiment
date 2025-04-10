@@ -6,7 +6,7 @@ from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 import ollama
 
 class OllamaChat(BaseChatModel):
-    model: str = "llama3"
+    model: str = "llama3.2:latest"
     temperature: float = 0.0
 
     def _convert_prompt(self, messages: List[HumanMessage]) -> list:
@@ -26,7 +26,7 @@ class OllamaChat(BaseChatModel):
         response = ollama.chat(
             model=self.model,
             messages=converted,
-            temperature=self.temperature
+            options={"temperature": self.temperature}  # ✅ Fix here
         )
         content = response["message"]["content"]
         message = AIMessage(content=content)
@@ -36,7 +36,7 @@ class OllamaChat(BaseChatModel):
         response = ollama.chat(
             model=self.model,
             messages=self._convert_prompt([HumanMessage(content=prompt)]),
-            temperature=self.temperature
+            options={"temperature": self.temperature}  # ✅ Fix here
         )
         return response["message"]["content"]
 
@@ -44,7 +44,7 @@ class OllamaChat(BaseChatModel):
         response_stream = ollama.chat(
             model=self.model,
             messages=self._convert_prompt([HumanMessage(content=prompt)]),
-            temperature=self.temperature,
+            options={"temperature": self.temperature},  # ✅ Fix here
             stream=True
         )
         for chunk in response_stream:
