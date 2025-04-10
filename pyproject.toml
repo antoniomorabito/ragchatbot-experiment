@@ -34,7 +34,7 @@ cohere = "^5.14.2"
 
 # PDF/Docs
 pypdf = "*"
-unstructured = "*"
+unstructured = {extras = ["pdf"], version = "^0.17.2"}
 
 # Embedding
 sentence-transformers = "^2.3.1"
