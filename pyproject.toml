@@ -3,15 +3,49 @@ name = "myragchatbot"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    {name = "Antonio Morabito",email = "antoniomorabitositorus@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-]
+
 
 [tool.poetry]
-packages = [{include = "myragchatbot", from = "src"}]
+name = "myragchatbot"
+version = "0.1.0"
+description = "RAG chatbot with Chainlit, LangChain, Chroma"
+authors = ["Antonio"]
+packages = [{ include = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+
+# Core packages
+langchain = "*"  # includes openai, chroma, etc
+langchain-openai = "^0.1.1"
+chromadb = ">=0.4.0,<0.7.0"
+openai = "^1.14.3"
+cohere = "^5.14.2"
+
+# PDF/Docs
+pypdf = "*"
+unstructured = "*"
+
+# Embedding
+sentence-transformers = "^2.3.1"
+huggingface-hub = "^0.22.2"
+
+# Util
+python-dotenv = "^1.0.1"
+pyyaml = "^6.0.1"
+tqdm = "^4.66.2"
+
+# UI
+chainlit = "*"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.3.0"
+isort = "^5.13.2"
+flake8 = "^7.0.0"
+pytest = "^8.1.1"
 
 
 [build-system]
