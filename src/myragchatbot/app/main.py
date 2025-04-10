@@ -6,7 +6,7 @@ from src.myragchatbot.core.query_engine import QueryEngine
 from src.myragchatbot.rerankers.cohere_reranker import CohereReranker
 from src.myragchatbot.loaders.pdf_loader import PDFLoader
 from src.myragchatbot.loaders.text_loader import TextFileLoader
-
+from src.myragchatbot.evaluation.rerank_evaluator import evaluate_reranking
 load_dotenv()
 
 st.set_page_config(page_title="RAG Chatbot", layout="wide")
@@ -134,6 +134,25 @@ if query:
 
         with st.expander(f"Doc {i} - Score: {score:.3f} | Page: {page} | File: {source}"):
             st.markdown(doc.page_content[:1000])
+    
+    
+    
+    k_eval = min(top_k, len(reranked))  
+    metrics = evaluate_reranking(reranked, k=k_eval)
+
+   
+    st.markdown("### Reranking Evaluation")
+    st.metric("Precision@k", f"{metrics['precision@k']:.2f}")
+    st.metric("Recall@k", f"{metrics['recall@k']:.2f}")
+    st.metric("MAP", f"{metrics['MAP']:.2f}")
+
+    #Tambahan: penjelasan metrik
+    with st.expander("What do these metrics mean?"):
+        st.markdown("""
+        - **Precision@k**: Proporsi dokumen di top-k yang memang relevan.
+        - **Recall@k**: Seberapa banyak dokumen relevan yang berhasil ditemukan dari total dokumen relevan.
+        - **MAP (Mean Average Precision)**: Rata-rata precision dari posisi di mana dokumen relevan muncul.
+        """)
 
     # Internet Context
     if use_internet:
