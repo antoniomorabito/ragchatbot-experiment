@@ -7,106 +7,86 @@ from src.myragchatbot.rerankers.cohere_reranker import CohereReranker
 from src.myragchatbot.loaders.pdf_loader import PDFLoader
 from src.myragchatbot.loaders.text_loader import TextFileLoader
 from src.myragchatbot.evaluation.rerank_evaluator import evaluate_reranking
+
 load_dotenv()
 
 st.set_page_config(page_title="RAG Chatbot", layout="wide")
-st.title("RAG Chatbot with Internet Search, MMR & Cohere Reranker")
+st.title("RAG Chatbot | Compare Embedding")
 
 UPLOAD_DIR = "data"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# --- State Init ---
+# --- STATE INIT ---
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
+if "engine" not in st.session_state:
+    st.session_state["engine"] = None
 
-# --- LLM, Embedding & Prompt Config ---
-llm_choice = st.selectbox("LLM backend:", ["openai", "ollama"], index=1)
-embedding_choice = st.selectbox("Embedding backend:", ["openai", "ollama"], index=1)
+# --- SELECT MODEL CONFIG ---
+llm_choice = st.selectbox("LLM backend:", ["openai", "ollama", "gemini", "mistral"], index=1)
+embedding_choice = st.selectbox("Embedding backend:", ["openai", "ollama","huggingface"], index=1)
 prompt_choice = st.selectbox("Prompt style:", ["default", "story", "qa", "summary"])
 use_internet = st.checkbox("Use Internet Search (Tavily)?", value=True)
 use_reranker = st.checkbox("Use Cohere Reranker?", value=False)
 use_mmr = st.checkbox("Use MMR Retriever?", value=False)
 temperature = st.slider("Model Temperature", 0.0, 1.0, 0.0, step=0.1)
-
-# --- RAG Config ---
 top_k = st.slider("Top K Documents", 1, 10, 5)
 rerank_threshold = st.slider("Rerank Threshold", 0.0, 1.0, 0.4, step=0.05)
 
-# --- Init Engine ---
-if (
-    "engine" not in st.session_state
-    or st.session_state.get("llm_choice") != llm_choice
-    or st.session_state.get("embedding_choice") != embedding_choice
-    or st.session_state.get("temperature") != temperature
-):
-    with st.spinner("Initializing engine and loading documents..."):
-        st.session_state["llm_choice"] = llm_choice
-        st.session_state["embedding_choice"] = embedding_choice
-        st.session_state["temperature"] = temperature
+# --- Trigger Build Vectorstore ---
+if st.button("Generate Vectorstore for Selected Embedding"):
+    with st.spinner("Creating vectorstore..."):
         st.session_state["engine"] = QueryEngine(
             llm_backend=llm_choice,
             embedding_backend=embedding_choice,
             temperature=temperature,
         )
-        st.success("Query Engine initialized.")
+        st.success(f"Vectorstore created using `{embedding_choice}` embedding.")
 
 query_engine: QueryEngine = st.session_state["engine"]
 
-# --- Upload File ---
+# --- Upload File & Index ---
 uploaded_file = st.file_uploader("Upload PDF or TXT file", type=["pdf", "txt"])
-if uploaded_file:
+if uploaded_file and query_engine:
     file_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
     with open(file_path, "wb") as f:
         f.write(uploaded_file.read())
-    
-    # Index ke vectorstore
     query_engine.load_and_index_file(file_path)
     st.success(f"`{uploaded_file.name}` uploaded and indexed.")
 
-    #Show chunk summary hanya untuk file yang baru saja diupload
-    if uploaded_file.name.lower().endswith(".pdf"):
+    # Optional: Show chunk preview
+    if uploaded_file.name.endswith(".pdf"):
         loader = PDFLoader(file_path)
-    elif uploaded_file.name.lower().endswith(".txt"):
-        loader = TextFileLoader(file_path)
     else:
-        loader = None
+        loader = TextFileLoader(file_path)
 
-    if loader:
-        docs = loader.load_documents()
-        splits = query_engine.processor.split_documents(docs)
+    docs = loader.load_documents()
+    splits = query_engine.processor.split_documents(docs)
 
-        with st.expander("View Chunking Summary"):
-            st.markdown(f"**File uploaded:** `{uploaded_file.name}`")
-            st.markdown(f"**Total chunks created:** {len(splits)}")
-
-            for i, chunk in enumerate(splits):
-                source = chunk.metadata.get("source", "unknown")
-                page = chunk.metadata.get("page_number", "?")
-                preview = chunk.page_content[:300].strip().replace("\n", " ")
-                st.markdown(f"**Chunk {i+1}** | Page: {page} | Source: `{source}`")
-                st.code(preview, language="markdown")
+    with st.expander("Chunking Summary"):
+        st.markdown(f"**Total Chunks:** {len(splits)}")
+        for i, chunk in enumerate(splits[:5]):
+            st.markdown(f"**Chunk {i+1}** — Page: {chunk.metadata.get('page_number', '?')}")
+            st.code(chunk.page_content[:300])
 
 # --- Clear Chat ---
-if st.button("Clear Chat History"):
+if st.button("🧹 Clear Chat History"):
     st.session_state["chat_history"] = []
 
-# --- Display Chat History ---
+# --- Chat ---
 st.markdown("### Chat")
 for msg in st.session_state["chat_history"]:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- Chat Input ---
 query = st.chat_input("Ask a question about the story...")
-
-if query:
+if query and query_engine:
     st.session_state["chat_history"].append({"role": "user", "content": query})
     with st.chat_message("user"):
         st.markdown(query)
 
-    # Assistant thinking
     with st.chat_message("assistant"):
-        with st.spinner("Searching, reranking, and thinking..."):
+        with st.spinner("Answering..."):
             answer, docs, debug_context = query_engine.answer_query(
                 question=query,
                 top_k=top_k,
@@ -118,44 +98,39 @@ if query:
 
     st.session_state["chat_history"].append({"role": "assistant", "content": answer})
 
-    # Reranked Docs
+    # --- Rerank + Evaluation ---
     if use_reranker:
         reranker = CohereReranker(threshold=rerank_threshold)
         reranked = reranker.rerank(query, docs)
     else:
         reranked = [{"document": doc, "relevance_score": 1.0} for doc in docs]
 
-    st.markdown("###  Reranked Documents")
+    st.markdown("### 📚 Reranked Documents")
     for i, item in enumerate(reranked, 1):
         score = item["relevance_score"]
         doc = item["document"]
         source = doc.metadata.get("source", "unknown")
         page = doc.metadata.get("page_number", "?")
-
-        with st.expander(f"Doc {i} - Score: {score:.3f} | Page: {page} | File: {source}"):
+        with st.expander(f"Doc {i} — Score: {score:.2f} — Page: {page}"):
             st.markdown(doc.page_content[:1000])
-    
-    
-    
-    k_eval = min(top_k, len(reranked))  
-    metrics = evaluate_reranking(reranked, k=k_eval)
 
-   
-    st.markdown("### Reranking Evaluation")
+    # --- Rerank Eval
+    k_eval = min(top_k, len(reranked))
+    metrics = evaluate_reranking(reranked, k=k_eval)
+    st.markdown("###Reranking Evaluation")
     st.metric("Precision@k", f"{metrics['precision@k']:.2f}")
     st.metric("Recall@k", f"{metrics['recall@k']:.2f}")
     st.metric("MAP", f"{metrics['MAP']:.2f}")
 
-    #Tambahan: penjelasan metrik
     with st.expander("What do these metrics mean?"):
         st.markdown("""
         - **Precision@k**: Proporsi dokumen di top-k yang memang relevan.
         - **Recall@k**: Seberapa banyak dokumen relevan yang berhasil ditemukan dari total dokumen relevan.
-        - **MAP (Mean Average Precision)**: Rata-rata precision dari posisi di mana dokumen relevan muncul.
+        - **MAP**: Rata-rata precision dari posisi di mana dokumen relevan muncul.
         """)
 
-    # Internet Context
+    # --- Internet Search Debug
     if use_internet:
-        st.markdown("###  Internet Search Context")
+        st.markdown("###Internet Context")
         for i, c in enumerate(debug_context[-top_k:], 1):
             st.markdown(f"**[{i}]** {c}")

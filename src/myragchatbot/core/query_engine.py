@@ -19,14 +19,15 @@ class QueryEngine:
         self,
         llm_backend: str = "openai",
         embedding_backend: str = "openai",
-        persist_dir: str = "vectorstore",
+        persist_dir_base: str = "vectorstore",
         data_dir: str = "data",
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
         temperature: float = 0.0
     ):
-        self.persist_dir = persist_dir
-        os.makedirs(persist_dir, exist_ok=True)
+        self.embedding_backend = embedding_backend
+        self.persist_dir = os.path.join(persist_dir_base, embedding_backend)
+        os.makedirs(self.persist_dir, exist_ok=True)
 
         self.processor = DocumentProcessor(chunk_size, chunk_overlap)
         self.embedder = get_embedder(embedding_backend)
@@ -77,12 +78,11 @@ class QueryEngine:
         use_internet: bool = False,
         use_mmr=False,
         prompt_type: str = "default"
-    ) -> Tuple[str, List[Document]]:
-        
+    ) -> Tuple[str, List[Document], List[str]]:
         if use_mmr:
-                docs = self.vectorstore.max_marginal_relevance_search(question, k=top_k, fetch_k=top_k * 2)
+            docs = self.vectorstore.max_marginal_relevance_search(question, k=top_k, fetch_k=top_k * 2)
         else:
-                docs = self.vectorstore.similarity_search(question, k=top_k)
+            docs = self.vectorstore.similarity_search(question, k=top_k)
 
         context_chunks = [doc.page_content for doc in docs]
 
@@ -108,4 +108,4 @@ class QueryEngine:
             prompt = default_rag_prompt.format(context=context, question=question)
 
         response = self.llm.invoke(prompt)
-        return response, docs,context_chunks
+        return response, docs, context_chunks
