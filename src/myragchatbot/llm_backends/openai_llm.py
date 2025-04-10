@@ -5,7 +5,7 @@ load_dotenv()
 
 
 class OpenAIChat:
-    def __init__(self, temperature=0.0, model="gpt-4o"):
+    def __init__(self, temperature=0.0, model="omni-moderation-latest"):
         self.llm = ChatOpenAI(
             model=model,
             temperature=temperature,

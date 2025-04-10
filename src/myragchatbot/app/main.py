@@ -13,8 +13,9 @@ st.title("📚 RAG Chatbot with Internet Search + Prompt Switching + Reranking")
 UPLOAD_DIR = "data"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# --- LLM & Prompt Config ---
+# --- LLM, Embedding & Prompt Config ---
 llm_choice = st.selectbox("🧠 Choose LLM backend:", ["openai", "ollama"])
+embedding_choice = st.selectbox("📌 Choose Embedding backend:", ["openai", "ollama"])
 prompt_choice = st.selectbox("📄 Prompt style:", ["default", "story", "qa", "summary"])
 use_internet = st.checkbox("🌍 Use Internet Search (Tavily)?", value=True)
 use_reranker = st.checkbox("🏗️ Use Cohere Reranker?", value=True)
@@ -24,9 +25,17 @@ top_k = st.slider("🔍 Top K Documents to Retrieve", 1, 10, 5)
 rerank_threshold = st.slider("🎯 Rerank Threshold", 0.0, 1.0, 0.4, step=0.05)
 
 # --- Initialize Query Engine ---
-if "engine" not in st.session_state or st.session_state["llm_choice"] != llm_choice:
+if (
+    "engine" not in st.session_state
+    or st.session_state.get("llm_choice") != llm_choice
+    or st.session_state.get("embedding_choice") != embedding_choice
+):
     st.session_state["llm_choice"] = llm_choice
-    st.session_state["engine"] = QueryEngine(llm_backend=llm_choice)
+    st.session_state["embedding_choice"] = embedding_choice
+    st.session_state["engine"] = QueryEngine(
+        llm_backend=llm_choice,
+        embedding_backend=embedding_choice
+    )
 
 query_engine: QueryEngine = st.session_state["engine"]
 
@@ -44,7 +53,7 @@ st.markdown("---")
 query = st.text_input("💬 Ask a question (e.g., 'What happened to the main character?')")
 
 if query:
-    with st.spinner("🔍 Searching, reranking and thinking..."):
+    with st.spinner("🔍 Searching, reranking, and thinking..."):
         # Run core RAG
         answer, docs = query_engine.answer_query(
             question=query,
