@@ -80,8 +80,11 @@ class QueryEngine:
             try:
                 tavily_results = run_tavily_search(question)
                 context_chunks.extend(tavily_results)
+                print("[DEBUG] Tavily returned results:")
+                for res in tavily_results:
+                    print(res)
             except Exception:
-                context_chunks.append("⚠️ Tavily search failed.")
+                context_chunks.append("Tavily search failed.")
 
         context = "\n\n".join(context_chunks)
 
@@ -95,4 +98,4 @@ class QueryEngine:
             prompt = default_rag_prompt.format(context=context, question=question)
 
         response = self.llm.invoke(prompt)
-        return response, docs
+        return response, docs,context_chunks

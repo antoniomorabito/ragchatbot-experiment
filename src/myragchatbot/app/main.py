@@ -53,9 +53,9 @@ st.markdown("---")
 query = st.text_input("Ask a question (e.g., 'What happened to the main character?')")
 
 if query:
-    with st.spinner("🔍 Searching, reranking, and thinking..."):
+    with st.spinner("Searching, reranking, and thinking..."):
         # Run core RAG
-        answer, docs = query_engine.answer_query(
+        answer, docs, debug_context = query_engine.answer_query(
             question=query,
             top_k=top_k,
             use_internet=use_internet,
