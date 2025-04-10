@@ -8,21 +8,21 @@ from src.myragchatbot.rerankers.cohere_reranker import CohereReranker
 load_dotenv()
 
 st.set_page_config(page_title="RAG Chatbot", layout="wide")
-st.title("📚 RAG Chatbot with Internet Search + Prompt Switching + Reranking")
+st.title("RAG Chatbot with Internet Search + Prompt Switching + Reranking")
 
 UPLOAD_DIR = "data"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # --- LLM, Embedding & Prompt Config ---
-llm_choice = st.selectbox("🧠 Choose LLM backend:", ["openai", "ollama"])
-embedding_choice = st.selectbox("📌 Choose Embedding backend:", ["openai", "ollama"])
-prompt_choice = st.selectbox("📄 Prompt style:", ["default", "story", "qa", "summary"])
-use_internet = st.checkbox("🌍 Use Internet Search (Tavily)?", value=True)
-use_reranker = st.checkbox("🏗️ Use Cohere Reranker?", value=True)
+llm_choice = st.selectbox("Choose LLM backend:", ["openai", "ollama"])
+embedding_choice = st.selectbox("Choose Embedding backend:", ["openai", "ollama"])
+prompt_choice = st.selectbox("Prompt style:", ["default", "story", "qa", "summary"])
+use_internet = st.checkbox("Use Internet Search (Tavily)?", value=True)
+use_reranker = st.checkbox("Use Cohere Reranker?", value=True)
 
 # --- RAG Config ---
-top_k = st.slider("🔍 Top K Documents to Retrieve", 1, 10, 5)
-rerank_threshold = st.slider("🎯 Rerank Threshold", 0.0, 1.0, 0.4, step=0.05)
+top_k = st.slider("Top K Documents to Retrieve", 1, 10, 5)
+rerank_threshold = st.slider("Rerank Threshold", 0.0, 1.0, 0.4, step=0.05)
 
 # --- Initialize Query Engine ---
 if (
@@ -40,20 +40,20 @@ if (
 query_engine: QueryEngine = st.session_state["engine"]
 
 # --- Upload File ---
-uploaded_file = st.file_uploader("📤 Upload PDF or TXT file", type=["pdf", "txt"])
+uploaded_file = st.file_uploader("Upload PDF or TXT file", type=["pdf", "txt"])
 if uploaded_file:
     file_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
     with open(file_path, "wb") as f:
         f.write(uploaded_file.read())
     query_engine.load_and_index_file(file_path)
-    st.success(f"✅ `{uploaded_file.name}` uploaded and indexed.")
+    st.success(f"`{uploaded_file.name}` uploaded and indexed.")
 
 # --- Ask Question ---
 st.markdown("---")
-query = st.text_input("💬 Ask a question (e.g., 'What happened to the main character?')")
+query = st.text_input("Ask a question (e.g., 'What happened to the main character?')")
 
 if query:
-    with st.spinner("🔍 Searching, reranking, and thinking..."):
+    with st.status("Searching, reranking, and thinking...", expanded=False):
         # Run core RAG
         answer, docs = query_engine.answer_query(
             question=query,
@@ -70,11 +70,11 @@ if query:
             reranked = [{"document": doc, "relevance_score": 1.0} for doc in docs]
 
         # Show Answer
-        st.markdown("### 💡 Answer")
+        st.markdown("###Answer")
         st.markdown(answer)
 
         # Show Sources
-        st.markdown("### 📚 Reranked Documents")
+        st.markdown("###  Reranked Documents")
         for i, item in enumerate(reranked, 1):
             score = item["relevance_score"]
             doc = item["document"]

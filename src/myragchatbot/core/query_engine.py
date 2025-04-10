@@ -1,22 +1,16 @@
 import os
 from typing import List, Tuple
-from dotenv import load_dotenv
-load_dotenv()
-
 from langchain_core.documents import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
-
 from src.myragchatbot.embeddings.embedder_factory import get_embedder
 from src.myragchatbot.loaders.pdf_loader import PDFLoader
 from src.myragchatbot.loaders.text_loader import TextFileLoader
+from src.myragchatbot.loaders.document_processor import DocumentProcessor
 from src.myragchatbot.llm_backends.openai_llm import OpenAIChat
+from src.myragchatbot.llm_backends.ollama_llm import OllamaChat
 from src.myragchatbot.internet_search.tavily_search import run_tavily_search
 from src.myragchatbot.core.prompt_template import (
-    default_rag_prompt,
-    story_prompt,
-    summary_prompt,
-    qa_prompt
+    default_rag_prompt, story_prompt, summary_prompt, qa_prompt
 )
 
 class QueryEngine:
@@ -25,49 +19,52 @@ class QueryEngine:
         llm_backend: str = "openai",
         embedding_backend: str = "openai",
         persist_dir: str = "vectorstore",
+        data_dir: str = "data",
         chunk_size: int = 1000,
         chunk_overlap: int = 200
     ):
         self.persist_dir = persist_dir
         os.makedirs(persist_dir, exist_ok=True)
 
-        # Text splitter
-        self.splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""]
-        )
-
-        # Embeddings via factory
+        self.processor = DocumentProcessor(chunk_size, chunk_overlap)
         self.embedder = get_embedder(embedding_backend)
 
-        # Vector DB
         self.vectorstore = Chroma(
             embedding_function=self.embedder,
             persist_directory=self.persist_dir,
             collection_name="docs"
         )
 
-        # LLM backend
         if llm_backend == "openai":
             self.llm = OpenAIChat(temperature=0)
         elif llm_backend == "ollama":
-            from src.myragchatbot.llm_backends.ollama_llm import OllamaChat
             self.llm = OllamaChat(model="llama3.2:latest", temperature=0)
         else:
             raise ValueError(f"Unknown LLM backend: {llm_backend}")
 
+        # Load dokumen otomatis pertama kali dijalankan
+        if self.vectorstore._collection.count() == 0:
+            self.load_initial_documents(data_dir)
+
+    def load_initial_documents(self, data_dir: str):
+        documents = self.processor.load_documents(data_dir)
+        if documents:
+            splits = self.processor.split_documents(documents)
+            self.vectorstore.add_documents(splits)
+
     def load_and_index_file(self, file_path: str):
         ext = os.path.splitext(file_path)[1].lower()
         if ext == ".pdf":
-            docs = PDFLoader(file_path).load_documents()
+            loader = PDFLoader(file_path)
         elif ext == ".txt":
-            docs = TextFileLoader(file_path).load_documents()
+            loader = TextFileLoader(file_path)
         else:
             raise ValueError(f"Unsupported file type: {ext}")
 
-        chunks = self.splitter.split_documents(docs)
-        self.vectorstore.add_documents(chunks)
+        documents = loader.load_documents()
+        if documents:
+            splits = self.processor.split_documents(documents)
+            self.vectorstore.add_documents(splits)
 
     def answer_query(
         self,
@@ -76,7 +73,6 @@ class QueryEngine:
         use_internet: bool = False,
         prompt_type: str = "default"
     ) -> Tuple[str, List[Document]]:
-        
         docs = self.vectorstore.similarity_search(question, k=top_k)
         context_chunks = [doc.page_content for doc in docs]
 
@@ -89,7 +85,6 @@ class QueryEngine:
 
         context = "\n\n".join(context_chunks)
 
-        # Choose prompt
         if prompt_type == "story":
             prompt = story_prompt.format(context=context, question=question)
         elif prompt_type == "qa":
