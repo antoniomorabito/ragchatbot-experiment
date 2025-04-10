@@ -71,9 +71,15 @@ class QueryEngine:
         question: str,
         top_k: int = 5,
         use_internet: bool = False,
+        use_mmr=False,
         prompt_type: str = "default"
     ) -> Tuple[str, List[Document]]:
-        docs = self.vectorstore.similarity_search(question, k=top_k)
+        
+        if use_mmr:
+                docs = self.vectorstore.max_marginal_relevance_search(question, k=top_k, fetch_k=top_k * 2)
+        else:
+                docs = self.vectorstore.similarity_search(question, k=top_k)
+
         context_chunks = [doc.page_content for doc in docs]
 
         if use_internet:

@@ -22,7 +22,9 @@ llm_choice = st.selectbox("LLM backend:", ["openai", "ollama"])
 embedding_choice = st.selectbox("Embedding backend:", ["openai", "ollama"])
 prompt_choice = st.selectbox("Prompt style:", ["default", "story", "qa", "summary"])
 use_internet = st.checkbox("Use Internet Search (Tavily)?", value=True)
-use_reranker = st.checkbox("Use Cohere Reranker?", value=True)
+use_reranker = st.checkbox("Use Cohere Reranker?", value=False)
+use_mmr = st.checkbox("Use MMR Retriever?", value=False)
+
 
 # --- RAG Config ---
 top_k = st.slider("Top K Documents", 1, 10, 5)
@@ -78,7 +80,8 @@ if query:
                 question=query,
                 top_k=top_k,
                 use_internet=use_internet,
-                prompt_type=prompt_choice
+                prompt_type=prompt_choice,
+                use_mmr=use_mmr
             )
             st.markdown(answer)
 
