@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 from dotenv import load_dotenv
+from time import time
 
 from src.myragchatbot.core.query_engine import QueryEngine
 from src.myragchatbot.rerankers.cohere_reranker import CohereReranker
@@ -106,6 +107,8 @@ if query and query_engine:
                     embedding_backend=embedding_choice,
                     temperature=temperature,
                 )
+
+                start_time = time()
                 answer, docs, debug_context = engine.answer_query(
                     question=query,
                     top_k=top_k,
@@ -113,9 +116,10 @@ if query and query_engine:
                     prompt_type=prompt_choice,
                     use_mmr=use_mmr,
                 )
-                st.markdown(f"**{llm.upper()}**: {answer}")
+                duration = time() - start_time
 
-                # Rerank
+                st.markdown(f"**{llm.upper()}** _({duration:.2f}s)_: {answer}")
+
                 if use_reranker:
                     reranker = CohereReranker(threshold=rerank_threshold)
                     reranked = reranker.rerank(query, docs)
@@ -145,6 +149,5 @@ if query and query_engine:
                         for i, c in enumerate(debug_context[-top_k:], 1):
                             st.markdown(f"**[{i}]** {c}")
 
-# --- If nothing yet
 elif not query_engine:
     st.warning("Please generate or load a vectorstore first.")
