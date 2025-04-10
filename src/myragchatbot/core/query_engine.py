@@ -60,7 +60,7 @@ class QueryEngine:
     def load_and_index_file(self, file_path: str):
         ext = os.path.splitext(file_path)[1].lower()
         if ext == ".pdf":
-            loader = PDFLoader(file_path)
+            loader = PDFLoader(file_path) 
         elif ext == ".txt":
             loader = TextFileLoader(file_path)
         else:
@@ -70,6 +70,7 @@ class QueryEngine:
         if documents:
             splits = self.processor.split_documents(documents)
             self.vectorstore.add_documents(splits)
+
 
     def answer_query(
         self,
