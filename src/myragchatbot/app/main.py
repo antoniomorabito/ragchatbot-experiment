@@ -12,7 +12,7 @@ from src.myragchatbot.evaluation.rerank_evaluator import evaluate_reranking
 load_dotenv()
 
 st.set_page_config(page_title="RAG Chatbot", layout="wide")
-st.title("RAG AI Chat | Compare Embedding + LLMs")
+st.title("AI Story QA | RAG with Internet, Reranker & Model Test")
 
 UPLOAD_DIR = "data"
 VECTORSTORE_DIR = "vectorstore"
