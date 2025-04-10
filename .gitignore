@@ -1,0 +1,29 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+
+# Poetry virtual environment
+.env/
+.venv/
+
+# VSCode settings
+.vscode/
+
+# Virtualenvs created outside project (optional, just in case)
+.env
+.venv
+
+# Distribution / packaging
+*.egg-info/
+build/
+dist/
+
+# Jupyter Notebooks checkpoints
+.ipynb_checkpoints/
+
+# macOS / Windows stuff
+.DS_Store
+Thumbs.db
