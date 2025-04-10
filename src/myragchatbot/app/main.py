@@ -18,12 +18,13 @@ if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 
 # --- LLM, Embedding & Prompt Config ---
-llm_choice = st.selectbox("LLM backend:", ["openai", "ollama"])
-embedding_choice = st.selectbox("Embedding backend:", ["openai", "ollama"])
+llm_choice = st.selectbox("LLM backend:", ["openai", "ollama"], index=1)
+embedding_choice = st.selectbox("Embedding backend:", ["openai", "ollama"], index=1)
 prompt_choice = st.selectbox("Prompt style:", ["default", "story", "qa", "summary"])
 use_internet = st.checkbox("Use Internet Search (Tavily)?", value=True)
 use_reranker = st.checkbox("Use Cohere Reranker?", value=False)
 use_mmr = st.checkbox("Use MMR Retriever?", value=False)
+temperature = st.slider("Model Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1)
 
 
 # --- RAG Config ---
@@ -35,12 +36,15 @@ if (
     "engine" not in st.session_state
     or st.session_state.get("llm_choice") != llm_choice
     or st.session_state.get("embedding_choice") != embedding_choice
+    or st.session_state.get("temperature") != temperature
 ):
     st.session_state["llm_choice"] = llm_choice
     st.session_state["embedding_choice"] = embedding_choice
+    st.session_state["temperature"] = temperature
     st.session_state["engine"] = QueryEngine(
         llm_backend=llm_choice,
-        embedding_backend=embedding_choice
+        embedding_backend=embedding_choice,
+        temperature=temperature
     )
 
 query_engine: QueryEngine = st.session_state["engine"]
@@ -95,11 +99,16 @@ if query:
     else:
         reranked = [{"document": doc, "relevance_score": 1.0} for doc in docs]
 
-    st.markdown("### 📚 Reranked Documents")
+    st.markdown("### Reranked Documents")
     for i, item in enumerate(reranked, 1):
         score = item["relevance_score"]
         doc = item["document"]
-        with st.expander(f"Doc {i} - Score: {score:.3f}"):
+
+        # 🔍 Tambahkan info sumber & halaman
+        source = doc.metadata.get("source", "unknown")
+        page = doc.metadata.get("page_number", "?")
+
+        with st.expander(f"Doc {i} - Score: {score:.3f} | Page: {page} | File: {source}"):
             st.markdown(doc.page_content[:1000])
 
     # Internet Debug

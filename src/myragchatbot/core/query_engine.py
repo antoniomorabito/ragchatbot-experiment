@@ -21,7 +21,8 @@ class QueryEngine:
         persist_dir: str = "vectorstore",
         data_dir: str = "data",
         chunk_size: int = 1000,
-        chunk_overlap: int = 200
+        chunk_overlap: int = 200,
+        temperature: float = 0.0
     ):
         self.persist_dir = persist_dir
         os.makedirs(persist_dir, exist_ok=True)
@@ -36,9 +37,9 @@ class QueryEngine:
         )
 
         if llm_backend == "openai":
-            self.llm = OpenAIChat(temperature=0)
+            self.llm = OpenAIChat(temperature=temperature)
         elif llm_backend == "ollama":
-            self.llm = OllamaChat(model="llama3.2:latest", temperature=0)
+            self.llm = OllamaChat(model="llama3.2:latest", temperature=temperature)
         else:
             raise ValueError(f"Unknown LLM backend: {llm_backend}")
 

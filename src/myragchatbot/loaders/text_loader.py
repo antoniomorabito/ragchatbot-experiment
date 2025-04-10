@@ -2,7 +2,6 @@ import os
 from typing import List
 from langchain_core.documents import Document
 
-
 class TextFileLoader:
     def __init__(self, directory: str):
         self.directory = directory
@@ -17,5 +16,14 @@ class TextFileLoader:
                 full_path = os.path.join(self.directory, filename)
                 with open(full_path, "r", encoding="utf-8") as f:
                     text = f.read()
-                    documents.append(Document(page_content=text, metadata={"source": filename}))
+                    #  Masukkan metadata: source + halaman
+                    doc = Document(
+                        page_content=text,
+                        metadata={
+                            "source": filename,
+                            "page_number": 1  # default 1 for .txt
+                        }
+                    )
+                    documents.append(doc)
+
         return documents
